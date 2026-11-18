@@ -170,7 +170,7 @@ textarea{min-height:110px;resize:vertical;font-family:ui-monospace,Consolas,mono
         <h2>Excel’den toplu ekle</h2>
         <textarea id="paste" placeholder="Excel’deki tabloyu kopyalayıp buraya yapıştır"></textarea>
         <label class="field" style="margin-top:10px"><span>Bölüm (yapıştırılan satırlarda bölüm yoksa)</span><input id="pBolum" list="bolumList" placeholder="Enjeksiyon"></label>
-        <div class="actions"><button class="btn" type="button" id="pasteBtn">Satırları ekle</button><button class="btn ghost" type="button" id="csvBtn">CSV olarak indir</button></div>
+        <div class="actions"><button class="btn" type="button" id="pasteBtn">Satırları ekle</button><button class="btn ghost" type="button" id="csvBtn">veri.csv olarak indir</button></div>
         <p class="hint">İki biçim tanınır: tezgahlar sütunlarda ve altında “İhtiyaç Çalışma günü” satırı; ya da her satırda Tezgah, Bölüm, İhtiyaç. Yasal iş günü takvimden alınır, yapıştırılan veride olsa da yok sayılır. Var olan tezgah numarası güncellenir.</p>
         <div class="msg" id="pasteMsg" role="status"></div>
       </section>
@@ -250,6 +250,8 @@ textarea{min-height:110px;resize:vertical;font-family:ui-monospace,Consolas,mono
     try { const raw = localStorage.getItem('tezgah-kapasite'); if (raw) JSON.parse(raw).forEach(r => state.rows.set(idOf(r.tezgah), { ...r, yasal: CAL.total })); } catch(e){}
   }
   function localSave(){
+    degisti = true;
+    if (kaynak === 'dosya') return;
     try { localStorage.setItem('tezgah-kapasite', JSON.stringify([...state.rows.values()])); } catch(e){}
   }
   async function saveRow(r){
@@ -599,10 +601,41 @@ textarea{min-height:110px;resize:vertical;font-family:ui-monospace,Consolas,mono
   renderCal();
   render();
 
-  // ---------- yerel depolama ----------
-  localLoad();
-  render();
-  $('status').textContent = `Veriler bu tarayıcıda saklanıyor (${state.rows.size} tezgah). Başka bir bilgisayara taşımak için CSV indirip orada yapıştır.`;
+  // ---------- veri kaynağı ----------
+  // veri.csv sayfayla aynı klasörde varsa herkes onu görür; ?duzenle ile açınca düzenlenip yeniden indirilebilir.
+  const DUZENLE = new URLSearchParams(location.search).has('duzenle');
+  var kaynak = 'yerel', degisti = false;
+  async function veriYukle(){
+    try {
+      const res = await fetch('veri.csv', { cache:'no-store' });
+      if (!res.ok) return null;
+      const buf = await res.arrayBuffer();
+      let text;
+      try { text = new TextDecoder('utf-8', { fatal:true }).decode(buf); }
+      catch(e){ text = new TextDecoder('windows-1254').decode(buf); }
+      text = text.replace(/^\ufeff/, '');
+      state.rows.clear();
+      parsePaste(text, '').forEach(it => state.rows.set(idOf(it.tezgah), { ...it, yasal: CAL.total }));
+      kaynak = 'dosya';
+      return { tarih: res.headers.get('Last-Modified') };
+    } catch(e){ return null; }
+  }
+  (async () => {
+    const sonuc = await veriYukle();
+    if (sonuc && !DUZENLE){
+      state.readOnly = true;
+      document.querySelectorAll('aside .panel:not(.cal)').forEach(p => p.hidden = true);
+      const t = sonuc.tarih ? new Date(sonuc.tarih) : null;
+      $('status').textContent = `${state.rows.size} tezgah` + (t && !isNaN(t) ? `, son güncelleme ${t.toLocaleString('tr-TR', { dateStyle:'long', timeStyle:'short' })}.` : '.');
+    } else if (sonuc){
+      $('status').textContent = `Düzenleme modu: veri.csv yüklendi (${state.rows.size} tezgah). İşin bitince “veri.csv olarak indir” ile indirip GitHub’daki veri.csv’nin yerine yükle; yüklemezsen değişiklikler kimseye görünmez.`;
+    } else {
+      localLoad();
+      $('status').textContent = `veri.csv bulunamadı; veriler yalnızca bu tarayıcıda saklanıyor (${state.rows.size} tezgah).`;
+    }
+    render();
+  })();
+  window.addEventListener('beforeunload', e => { if (kaynak === 'dosya' && DUZENLE && degisti){ e.preventDefault(); e.returnValue = ''; } });
 
   // ---------- CSV indir ----------
   $('csvBtn').addEventListener('click', () => {
@@ -613,7 +646,8 @@ textarea{min-height:110px;resize:vertical;font-family:ui-monospace,Consolas,mono
     const blob = new Blob(['\ufeff' + lines.join('\r\n')], { type:'text/csv;charset=utf-8' });
     const a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
-    a.download = 'tezgah-kapasite.csv';
+    a.download = 'veri.csv';
+    degisti = false;
     document.body.appendChild(a); a.click(); a.remove();
     setTimeout(() => URL.revokeObjectURL(a.href), 1000);
   });
