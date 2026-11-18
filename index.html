@@ -391,23 +391,30 @@ textarea{min-height:110px;resize:vertical;font-family:ui-monospace,Consolas,mono
       </div>
     </article>`;
   }
+  // Bölüm doluluğu = bölümdeki en dolu tezgahın doluluğu
+  function enYuksek(g){
+    const o = r => (+r.ihtiyac||0) / ((+r.yasal)||1);
+    return g.reduce((m, r) => o(r) > o(m) ? r : m, g[0]);
+  }
   function bolumHtml(b, g){
-    const s = stats(g);
+    const n = g.length, m = enYuksek(g);
+    const y = +m.yasal||0, h = +m.ihtiyac||0, oran = y > 0 ? h/y : 0;
     const asan = g.filter(r => (+r.ihtiyac||0) > (+r.yasal||0)).length;
     const siparissiz = g.filter(r => !((+r.ihtiyac||0) > 0)).length;
-    const ad = b === BOLUMSUZ
-      ? `Bölümü girilmemiş <b>${s.n}</b> tezgah`
-      : `<b>${esc(b)}</b> bölümündeki <b>${s.n}</b> tezgah`;
-    let cumle = `${ad} toplam <b>${fmt(s.yasal)}</b> gün çalışabilirken siparişe göre <b>${fmt(s.ihtiyac)}</b> gün çalışacak.`;
-    cumle += s.ihtiyac > s.yasal ? ` Kapasiteyi <b>${fmt(s.ihtiyac - s.yasal)}</b> gün aşıyor.` : ` <b>${fmt(s.bos)}</b> gün boşta kalıyor.`;
-    const pill = s.ihtiyac > s.yasal ? `<span class="pill a">${pct(s.oran)} yük</span>` : `<span class="pill ${s.oran>=0.5?'d':'b'}">${pct(s.oran)} dolu</span>`;
+    const ad = b === BOLUMSUZ ? `Bölümü girilmemiş <b>${n}</b> tezgah içinde` : `<b>${esc(b)}</b> bölümünde (${n} tezgah)`;
+    let cumle;
+    if (h > 0){
+      cumle = `${ad} en dolu tezgah <b>${esc(m.tezgah)}</b>: <b>${fmt(y)}</b> gün çalışabilirken siparişe göre <b>${fmt(h)}</b> gün çalışacak.`;
+      cumle += h > y ? ` Kapasiteyi <b>${fmt(h - y)}</b> gün aşıyor.` : ` <b>${fmt(y - h)}</b> gün boşta kalıyor.`;
+    } else cumle = `${ad} hiçbir tezgahta sipariş yok.`;
+    const pill = h > y ? `<span class="pill a">${pct(oran)} yük</span>` : `<span class="pill ${oran>=0.5?'d':'b'}">${pct(oran)} dolu</span>`;
     const ekler = (asan ? `<span>${asan} tezgahta kapasite aşımı</span>` : '') + (siparissiz ? `<span>${siparissiz} tezgahta sipariş yok</span>` : '');
     return `<article class="mach dep">
-      <div class="no big">${esc(b)}<small>${s.n} tezgah</small></div>
+      <div class="no big">${esc(b)}<small>${n} tezgah</small></div>
       <div class="body">
         <p class="sentence">${cumle}</p>
-        <div class="meta">${pill}<span>Boşta ${fmt(s.bos)} gün</span>${ekler}<span class="tools"><button class="btn ghost small" data-open="${esc(b)}">Tezgahları göster</button></span></div>
-        ${strip(s.yasal, s.ihtiyac, b + ' bölümü')}
+        <div class="meta">${pill}<span>Boşta ${fmt(Math.max(0, y - h))} gün</span>${bitis(y, h)}${ekler}<span class="tools"><button class="btn ghost small" data-open="${esc(b)}">Tezgahları göster</button></span></div>
+        ${strip(y, h, b + ' bölümü en dolu tezgah')}
       </div>
     </article>`;
   }
@@ -455,19 +462,19 @@ textarea{min-height:110px;resize:vertical;font-family:ui-monospace,Consolas,mono
     if (state.mode === 'bolum'){
       const deps = bolumler.map(b => {
         const g = list.filter(r => (r.bolum||BOLUMSUZ) === b);
-        const s = stats(g);
-        return { tezgah:b, yasal:s.yasal, ihtiyac:s.ihtiyac, g };
+        const m = enYuksek(g);
+        return { tezgah:b, yasal:m.yasal, ihtiyac:m.ihtiyac, g };
       }).filter(d => d.g.length);
       host.innerHTML = sorted(deps).map(d => bolumHtml(d.tezgah, d.g)).join('');
     } else if (state.mode === 'grup'){
       host.innerHTML = bolumler.filter(b => list.some(r => (r.bolum||BOLUMSUZ) === b)).map(b => {
         const g = list.filter(r => (r.bolum||BOLUMSUZ) === b);
-        const s = stats(g);
+        const m = enYuksek(g);
+        const oran = (+m.yasal) > 0 ? (+m.ihtiyac||0) / (+m.yasal) : 0;
         return `<section class="group">
           <div class="ghead"><h3>${esc(b)}</h3>
-            <div class="stats"><span><b>${s.n}</b> tezgah</span><span>Kapasite <b>${fmt(s.yasal)}</b> gün</span><span>İhtiyaç <b>${fmt(s.ihtiyac)}</b> gün</span><span>Doluluk <b>${pct(s.oran)}</b></span></div>
+            <div class="stats"><span><b>${g.length}</b> tezgah</span><span>En dolu tezgah <b>${esc(m.tezgah)}</b></span><span>Doluluk <b>${pct(oran)}</b></span></div>
           </div>
-          ${g.length > 1 ? `<div class="gstrip">${strip(s.yasal/s.n, s.ihtiyac/s.n, b + ' bölüm ortalaması')}<p class="hint" style="margin-top:4px">Bölüm ortalaması (tezgah başına)</p></div>` : ''}
           ${sorted(g).map(machineHtml).join('')}
         </section>`;
       }).join('');
