@@ -466,11 +466,12 @@ textarea{min-height:110px;resize:vertical;font-family:ui-monospace,Consolas,mono
     };
     return { calisan: ozet(calisan), fazla: ozet(bos) };
   }
-  // Ortalama adam: çalışılan aylardaki adam sayıları toplanıp 12'ye bölünür (boş aylar 0 sayılır)
+  // Ortalama adam: her ay bölümlerin adam sayıları toplanır, Ocak–Aralık 12 ayın ortalaması alınır
   function adamOrt(bolumAdlari){
-    const d = adamDagilim(bolumAdlari);
-    if (!d || !d.calisan) return null;
-    return { ort: d.calisan.ort * d.calisan.aylar.length / 12, aylar: d.calisan.aylar };
+    const k = bolumAdlari ? bolumAdlari.map(b => PERSONEL.get(bkey(b))).filter(Boolean) : [...PERSONEL.values()];
+    if (!k.length) return null;
+    const aylik = Array.from({ length:12 }, (_, i) => k.reduce((t, p) => t + p.aylar[i], 0));
+    return { aylik, ort: aylik.reduce((x, y) => x + y, 0) / 12 };
   }
   function donem(aylar){
     if (!aylar || !aylar.length) return '';
@@ -502,7 +503,7 @@ textarea{min-height:110px;resize:vertical;font-family:ui-monospace,Consolas,mono
   }
   function adamMeta(b){
     const a = adamOrt([b]); if (!a) return '';
-    return `<span title="Çalışılan aylar (${donem(a.aylar)}) 12 aya bölündü">Ortalama ${fmt2(a.ort)} kişi</span>`;
+    return `<span>Ortalama ${fmt2(a.ort)} kişi</span>`;
   }
 
   function enYuksek(g){
@@ -558,7 +559,7 @@ textarea{min-height:110px;resize:vertical;font-family:ui-monospace,Consolas,mono
       <div><span class="big" style="color:var(--dolu)">${fmt(t.ihtiyac)}</span><span class="l">Siparişe göre ihtiyaç (gün)</span></div>
       <div><span class="big" style="color:var(--bos)">${pct(t.oran)}</span><span class="l">Genel doluluk</span></div>` + (() => {
         const a = adamOrt(state.bolum === '*' ? null : [state.bolum]);
-        return a ? `<div title="Çalışılan aylardaki (${donem(a.aylar)}) adam sayıları toplanıp 12 aya bölündü"><span class="big">${fmt2(a.ort)}</span><span class="l">Ortalama adam sayısı (12 ay)</span></div>` : '';
+        return a ? `<div title="Ocak–Aralık her ay bölümlerin adam sayıları toplanıp 12 ayın ortalaması alındı"><span class="big">${fmt2(a.ort)}</span><span class="l">Ortalama adam sayısı</span></div>` : '';
       })();
 
     const notes = { gun:'Her kare bir iş günü (Pazar ve resmi tatiller yok, ince kare yarım gün).', hafta:`Her kare ${YIL}’nin bir haftası; o haftanın iş günü kadar kapasite taşır.`, ay:'Her kare bir ay; o ayın iş günü kadar kapasite taşır. Bölümlerin aylık adam sayısı karelerin üstünde.' };
