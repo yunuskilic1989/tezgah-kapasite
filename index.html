@@ -451,11 +451,28 @@ textarea{min-height:110px;resize:vertical;font-family:ui-monospace,Consolas,mono
     } catch(e){ return false; }
   }
   // Her ay bölümlerin adam sayıları toplanır, sonra 12 ayın ortalaması alınır
-  function adamOrt(bolumAdlari){
+  // Her ay bölümlerin adam sayıları, o ay çalışıyorlarsa "çalışan", tamamen boştaysa "fazla" tarafına toplanır.
+  // Ortalamalar yalnızca ilgili ayların üzerinden alınır (örn. Oca–Eyl çalışan, Eki–Ara fazla).
+  function adamDagilim(bolumAdlari){
     const k = bolumAdlari ? bolumAdlari.map(b => PERSONEL.get(bkey(b))).filter(Boolean) : [...PERSONEL.values()];
     if (!k.length) return null;
-    const aylik = Array.from({ length:12 }, (_, i) => k.reduce((t, p) => t + p.aylar[i], 0));
-    return { aylik, ort: aylik.reduce((a, b) => a + b, 0) / 12 };
+    const calisan = Array(12).fill(0), bos = Array(12).fill(0);
+    k.forEach(p => {
+      const d = bolumAyDoluluk(p.ad);
+      p.aylar.forEach((n, i) => { if (d && d[i] <= 0) bos[i] += n; else calisan[i] += n; });
+    });
+    const ozet = arr => {
+      const aylar = arr.map((v, i) => v > 0.0001 ? i : -1).filter(i => i >= 0);
+      return aylar.length ? { ort: aylar.reduce((t, i) => t + arr[i], 0) / aylar.length, aylar } : null;
+    };
+    return { calisan: ozet(calisan), fazla: ozet(bos) };
+  }
+  function adamOrt(bolumAdlari){ const d = adamDagilim(bolumAdlari); return d ? d.calisan : null; }
+  function donem(aylar){
+    if (!aylar || !aylar.length) return '';
+    const bitisik = aylar.every((m, i) => i === 0 || m === aylar[i-1] + 1);
+    if (aylar.length === 1) return AY_KISA[aylar[0]];
+    return bitisik ? `${AY_KISA[aylar[0]]}–${AY_KISA[aylar[aylar.length-1]]}` : `${aylar.length} ay`;
   }
   // Bölümün aylık doluluk oranı (en dolu tezgaha göre, 1 Ocak'tan sırayla): 0..1
   function bolumAyDoluluk(b){
@@ -467,25 +484,15 @@ textarea{min-height:110px;resize:vertical;font-family:ui-monospace,Consolas,mono
     return CAL.months.map(ay => { const cap = ay.cap * k; const u = Math.max(0, Math.min(cap, rest)); rest -= u; return cap > 0 ? u / cap : 0; });
   }
   // Fazla adam: boşta kalan ay(ın boş kısmı) kadar adam sayısı; her ay bölümler toplanır, 12 ayın ortalaması alınır
-  function fazlaAdam(bolumAdlari){
-    const k = bolumAdlari ? bolumAdlari.map(b => PERSONEL.get(bkey(b))).filter(Boolean) : [...PERSONEL.values()];
-    const aylik = Array(12).fill(0); let say = 0;
-    k.forEach(p => {
-      const d = bolumAyDoluluk(p.ad); if (!d) return;
-      say++;
-      p.aylar.forEach((n, i) => { aylik[i] += n * (1 - d[i]); });
-    });
-    if (!say) return null;
-    return { aylik, ort: aylik.reduce((a, b) => a + b, 0) / 12 };
-  }
+  function fazlaAdam(bolumAdlari){ const d = adamDagilim(bolumAdlari); return d ? d.fazla : null; }
   function adamSatiri(b, etiket){
     const p = PERSONEL.get(bkey(b));
     if (!p || state.view !== 'ay') return '';
     const d = bolumAyDoluluk(b) || Array(12).fill(1);
     const hucre = p.aylar.map((n, i) => {
-      const fazla = n * (1 - d[i]);
-      const t = `${AYLAR[i]}: ${fmt2(n)} kişi` + (fazla > 0.005 ? `, ${fmt2(fazla)} fazla` : '');
-      return `<span class="${fazla > 0.005 ? 'fz' : ''}" title="${t}">${fmt2(n)}</span>`;
+      const bos = d[i] <= 0;
+      const t = `${AYLAR[i]}: ${fmt2(n)} kişi` + (bos ? ' (bölüm boşta, fazla adam)' : '');
+      return `<span class="${bos ? 'fz' : ''}" title="${t}">${fmt2(n)}</span>`;
     }).join('');
     return etiket
       ? `<div class="adamwrap"><p class="hint">Aylık adam sayısı</p><div class="adamrow">${hucre}</div></div>`
@@ -494,7 +501,7 @@ textarea{min-height:110px;resize:vertical;font-family:ui-monospace,Consolas,mono
   function adamMeta(b){
     const a = adamOrt([b]); if (!a) return '';
     const f = fazlaAdam([b]);
-    return `<span>Ortalama ${fmt2(a.ort)} kişi</span>` + (f && f.ort > 0.005 ? `<span style="color:var(--bos);font-weight:600">Fazla ${fmt2(f.ort)} kişi</span>` : '');
+    return `<span>Ortalama ${fmt2(a.ort)} kişi (${donem(a.aylar)})</span>` + (f ? `<span style="color:var(--bos);font-weight:600">Fazla ${fmt2(f.ort)} kişi (${donem(f.aylar)})</span>` : '');
   }
 
   function enYuksek(g){
@@ -550,9 +557,9 @@ textarea{min-height:110px;resize:vertical;font-family:ui-monospace,Consolas,mono
       <div><span class="big" style="color:var(--dolu)">${fmt(t.ihtiyac)}</span><span class="l">Siparişe göre ihtiyaç (gün)</span></div>
       <div><span class="big" style="color:var(--bos)">${pct(t.oran)}</span><span class="l">Genel doluluk</span></div>` + (() => {
         const a = adamOrt(state.bolum === '*' ? null : [state.bolum]);
-        return a ? `<div title="Her ay bölümlerin adam sayıları toplanıp 12 ayın ortalaması alındı"><span class="big">${fmt2(a.ort)}</span><span class="l">Ortalama adam sayısı</span></div>` + (() => {
+        return a ? `<div title="Çalışılan aylarda bölümlerin adam sayıları toplanıp bu ayların ortalaması alındı"><span class="big">${fmt2(a.ort)}</span><span class="l">Ortalama adam sayısı (${donem(a.aylar)})</span></div>` + (() => {
           const f = fazlaAdam(state.bolum === '*' ? null : [state.bolum]);
-          return f ? `<div title="Boşta kalan aylarda (kısmen boşsa boş kısmı kadar) bölümlerin adam sayıları toplanıp 12 ayın ortalaması alındı"><span class="big" style="color:var(--bos)">${fmt2(f.ort)}</span><span class="l">Fazla adam ortalaması (%${(f.ort / a.ort * 100).toLocaleString('tr-TR',{maximumFractionDigits:1})})</span></div>` : '';
+          return f ? `<div title="Bölümün tamamen boşta kaldığı aylarda adam sayıları toplanıp bu ayların ortalaması alındı"><span class="big" style="color:var(--bos)">${fmt2(f.ort)}</span><span class="l">Fazla adam ortalaması (${donem(f.aylar)})</span></div>` : `<div><span class="big" style="color:var(--bos)">0</span><span class="l">Fazla adam ortalaması</span></div>`;
         })() : '';
       })();
 
@@ -586,7 +593,7 @@ textarea{min-height:110px;resize:vertical;font-family:ui-monospace,Consolas,mono
         const oran = (+m.yasal) > 0 ? (+m.ihtiyac||0) / (+m.yasal) : 0;
         return `<section class="group">
           <div class="ghead"><h3>${esc(b)}</h3>
-            <div class="stats"><span><b>${g.length}</b> tezgah</span><span>En dolu tezgah <b>${esc(m.tezgah)}</b></span><span>Doluluk <b>${pct(oran)}</b></span>${(() => { const a = adamOrt([b]); return a ? `<span>Ortalama adam <b>${fmt2(a.ort)}</b></span>` : ''; })()}</div>
+            <div class="stats"><span><b>${g.length}</b> tezgah</span><span>En dolu tezgah <b>${esc(m.tezgah)}</b></span><span>Doluluk <b>${pct(oran)}</b></span>${(() => { const a = adamOrt([b]), f = fazlaAdam([b]); return (a ? `<span>Ortalama adam <b>${fmt2(a.ort)}</b> (${donem(a.aylar)})</span>` : '') + (f ? `<span style="color:var(--bos)">Fazla adam <b style="color:var(--bos)">${fmt2(f.ort)}</b> (${donem(f.aylar)})</span>` : ''); })()}</div>
           </div>
           ${adamSatiri(b, true)}
           ${sorted(g).map(machineHtml).join('')}
