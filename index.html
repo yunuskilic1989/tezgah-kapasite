@@ -85,6 +85,10 @@ textarea{min-height:110px;resize:vertical;font-family:ui-monospace,Consolas,mono
 .ghead .stats{display:flex;flex-wrap:wrap;gap:4px 18px;font-size:14px;color:var(--muted)}
 .ghead .stats b{color:var(--ink);font-weight:600}
 .gstrip{margin:0 0 14px}
+.adamrow{display:grid;grid-template-columns:repeat(12,minmax(0,1fr));gap:3px;margin-bottom:3px}
+.adamrow span{text-align:center;font-family:"Barlow Condensed","Arial Narrow",sans-serif;font-size:13px;font-weight:600;background:var(--surface-2);border:1px solid var(--line);border-radius:3px;padding:1px 0;white-space:nowrap;overflow:hidden}
+.ghead + .adamwrap{margin:0 0 10px}
+.adamwrap .hint{margin:0 0 3px}
 
 .mach{display:grid;grid-template-columns:auto 1fr;gap:4px 16px;padding:14px 0;border-bottom:1px solid var(--line)}
 .mach:last-child{border-bottom:0}
@@ -392,8 +396,56 @@ textarea{min-height:110px;resize:vertical;font-family:ui-monospace,Consolas,mono
     </article>`;
   }
   // Bölüm doluluğu = bölümdeki en dolu tezgahın doluluğu
+  // ---------- adam sayısı (personel.csv) ----------
+  const PERSONEL = new Map();
+  const bkey = s => String(s || '').trim().toLocaleLowerCase('tr');
+  const fmt2 = n => Number(n).toLocaleString('tr-TR', { minimumFractionDigits:2, maximumFractionDigits:2 });
+  function parsePersonel(text){
+    PERSONEL.clear();
+    text.replace(/^\ufeff/, '').replace(/\r/g, '').split('\n').forEach(l => {
+      const c = l.split(/\t|;/).map(x => x.trim());
+      if (!c[0]) return;
+      const nums = c.slice(1, 13).map(parseNum);
+      if (!nums.some(n => !isNaN(n))) return;
+      while (nums.length < 12) nums.push(NaN);
+      PERSONEL.set(bkey(c[0]), { ad:c[0], aylar: nums.map(n => isNaN(n) ? 0 : n) });
+    });
+  }
+  async function personelYukle(){
+    try {
+      const res = await fetch('personel.csv', { cache:'no-store' });
+      if (!res.ok) return false;
+      const buf = await res.arrayBuffer();
+      let text;
+      try { text = new TextDecoder('utf-8', { fatal:true }).decode(buf); }
+      catch(e){ text = new TextDecoder('windows-1254').decode(buf); }
+      parsePersonel(text);
+      return true;
+    } catch(e){ return false; }
+  }
+  // Her ay bölümlerin adam sayıları toplanır, sonra 12 ayın ortalaması alınır
+  function adamOrt(bolumAdlari){
+    const k = bolumAdlari ? bolumAdlari.map(b => PERSONEL.get(bkey(b))).filter(Boolean) : [...PERSONEL.values()];
+    if (!k.length) return null;
+    const aylik = Array.from({ length:12 }, (_, i) => k.reduce((t, p) => t + p.aylar[i], 0));
+    return { aylik, ort: aylik.reduce((a, b) => a + b, 0) / 12 };
+  }
+  function adamSatiri(b, etiket){
+    const p = PERSONEL.get(bkey(b));
+    if (!p || state.view !== 'ay') return '';
+    const hucre = p.aylar.map((n, i) => `<span title="${AYLAR[i]}: ${fmt2(n)} kişi">${fmt2(n)}</span>`).join('');
+    return etiket
+      ? `<div class="adamwrap"><p class="hint">Aylık adam sayısı</p><div class="adamrow">${hucre}</div></div>`
+      : `<div class="adamrow" aria-label="Aylık adam sayısı">${hucre}</div>`;
+  }
+  function adamMeta(b){
+    const a = adamOrt([b]);
+    return a ? `<span>Ortalama ${fmt2(a.ort)} kişi</span>` : '';
+  }
+
   function enYuksek(g){
     const o = r => (+r.ihtiyac||0) / ((+r.yasal)||1);
+    if (!g.length) return { tezgah:'', yasal:0, ihtiyac:0 };
     return g.reduce((m, r) => o(r) > o(m) ? r : m, g[0]);
   }
   function bolumHtml(b, g){
@@ -413,7 +465,8 @@ textarea{min-height:110px;resize:vertical;font-family:ui-monospace,Consolas,mono
       <div class="no big">${esc(b)}<small>${n} tezgah</small></div>
       <div class="body">
         <p class="sentence">${cumle}</p>
-        <div class="meta">${pill}<span>Boşta ${fmt(Math.max(0, y - h))} gün</span>${bitis(y, h)}${ekler}<span class="tools"><button class="btn ghost small" data-open="${esc(b)}">Tezgahları göster</button></span></div>
+        <div class="meta">${pill}<span>Boşta ${fmt(Math.max(0, y - h))} gün</span>${bitis(y, h)}${adamMeta(b)}${ekler}<span class="tools"><button class="btn ghost small" data-open="${esc(b)}">Tezgahları göster</button></span></div>
+        ${adamSatiri(b)}
         ${strip(y, h, b + ' bölümü en dolu tezgah')}
       </div>
     </article>`;
@@ -441,9 +494,12 @@ textarea{min-height:110px;resize:vertical;font-family:ui-monospace,Consolas,mono
       <div><span class="big">${t.n}</span><span class="l">Tezgah</span></div>
       <div><span class="big">${fmt(t.yasal)}</span><span class="l">Toplam kapasite (gün)</span></div>
       <div><span class="big" style="color:var(--dolu)">${fmt(t.ihtiyac)}</span><span class="l">Siparişe göre ihtiyaç (gün)</span></div>
-      <div><span class="big" style="color:var(--bos)">${pct(t.oran)}</span><span class="l">Genel doluluk</span></div>`;
+      <div><span class="big" style="color:var(--bos)">${pct(t.oran)}</span><span class="l">Genel doluluk</span></div>` + (() => {
+        const a = adamOrt(state.bolum === '*' ? null : [state.bolum]);
+        return a ? `<div title="Her ay bölümlerin adam sayıları toplanıp 12 ayın ortalaması alındı"><span class="big">${fmt2(a.ort)}</span><span class="l">Ortalama adam sayısı</span></div>` : '';
+      })();
 
-    const notes = { gun:'Her kare bir iş günü (Pazar ve resmi tatiller yok, ince kare yarım gün).', hafta:`Her kare ${YIL}’nin bir haftası; o haftanın iş günü kadar kapasite taşır.`, ay:'Her kare bir ay; o ayın iş günü kadar kapasite taşır.' };
+    const notes = { gun:'Her kare bir iş günü (Pazar ve resmi tatiller yok, ince kare yarım gün).', hafta:`Her kare ${YIL}’nin bir haftası; o haftanın iş günü kadar kapasite taşır.`, ay:'Her kare bir ay; o ayın iş günü kadar kapasite taşır. Bölümlerin aylık adam sayısı karelerin üstünde.' };
     $('unitNote').textContent = notes[state.view] + ' Doluluk 1 Ocak’tan itibaren sırayla işaretlenir. Karenin üzerine gelince ayrıntı görünür.';
     const farkli = all.filter(r => Math.abs((+r.yasal||0) - CAL.total) > 0.01);
     const bn = $('banner');
@@ -473,8 +529,9 @@ textarea{min-height:110px;resize:vertical;font-family:ui-monospace,Consolas,mono
         const oran = (+m.yasal) > 0 ? (+m.ihtiyac||0) / (+m.yasal) : 0;
         return `<section class="group">
           <div class="ghead"><h3>${esc(b)}</h3>
-            <div class="stats"><span><b>${g.length}</b> tezgah</span><span>En dolu tezgah <b>${esc(m.tezgah)}</b></span><span>Doluluk <b>${pct(oran)}</b></span></div>
+            <div class="stats"><span><b>${g.length}</b> tezgah</span><span>En dolu tezgah <b>${esc(m.tezgah)}</b></span><span>Doluluk <b>${pct(oran)}</b></span>${(() => { const a = adamOrt([b]); return a ? `<span>Ortalama adam <b>${fmt2(a.ort)}</b></span>` : ''; })()}</div>
           </div>
+          ${adamSatiri(b, true)}
           ${sorted(g).map(machineHtml).join('')}
         </section>`;
       }).join('');
@@ -628,7 +685,7 @@ textarea{min-height:110px;resize:vertical;font-family:ui-monospace,Consolas,mono
     } catch(e){ return null; }
   }
   (async () => {
-    const sonuc = await veriYukle();
+    const [sonuc, personelVar] = await Promise.all([veriYukle(), personelYukle()]);
     if (sonuc && !DUZENLE){
       state.readOnly = true;
       document.querySelectorAll('aside .panel:not(.cal)').forEach(p => p.hidden = true);
@@ -640,6 +697,7 @@ textarea{min-height:110px;resize:vertical;font-family:ui-monospace,Consolas,mono
       localLoad();
       $('status').textContent = `veri.csv bulunamadı; veriler yalnızca bu tarayıcıda saklanıyor (${state.rows.size} tezgah).`;
     }
+    if (personelVar) $('status').textContent += ` Adam sayısı: ${PERSONEL.size} bölüm.`;
     render();
   })();
   window.addEventListener('beforeunload', e => { if (kaynak === 'dosya' && DUZENLE && degisti){ e.preventDefault(); e.returnValue = ''; } });
