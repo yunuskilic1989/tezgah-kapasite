@@ -1,0 +1,623 @@
+<!doctype html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Tezgah kapasite takibi</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600;700&family=Barlow+Condensed:wght@500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#E9EDEC; --surface:#FFFFFF; --surface-2:#F4F6F5; --ink:#1B252B; --muted:#5A676E; --line:#D0D8D6;
+  --dolu:#2E9E5B; --bos:#F08A24; --asim:#C3352B; --accent:#1F4E5F; --focus:#1F6FD1;
+  color-scheme:light;
+  box-sizing:border-box;
+  padding-top:env(safe-area-inset-top,0px);
+  padding-bottom:env(safe-area-inset-bottom,0px);
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#12181B; --surface:#1B2327; --surface-2:#222C31; --ink:#E5EBE9; --muted:#97A4A8; --line:#2E393E;
+    --dolu:#3BB470; --bos:#F39A3D; --asim:#E2574B; --accent:#86BDCF; --focus:#6FA8FF;
+    color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#12181B; --surface:#1B2327; --surface-2:#222C31; --ink:#E5EBE9; --muted:#97A4A8; --line:#2E393E;
+  --dolu:#3BB470; --bos:#F39A3D; --asim:#E2574B; --accent:#86BDCF; --focus:#6FA8FF;
+  color-scheme:dark;
+}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+*,*::before,*::after{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:"Barlow",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;font-size:16px;line-height:1.45}
+.num,.big{font-family:"Barlow Condensed","Arial Narrow",system-ui,sans-serif;font-variant-numeric:tabular-nums}
+button,input,select,textarea{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
+
+.wrap{max-width:1280px;margin:0 auto;padding:20px 16px 48px}
+header.top{display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:16px 32px;padding-bottom:18px;border-bottom:3px solid var(--ink)}
+header.top h1{margin:0;font-family:"Barlow Condensed","Arial Narrow",sans-serif;font-weight:700;font-size:clamp(28px,4vw,40px);line-height:1;letter-spacing:.2px}
+header.top p{margin:6px 0 0;color:var(--muted);max-width:60ch}
+.totals{display:flex;flex-wrap:wrap;gap:4px 28px}
+.totals div{min-width:90px}
+.totals .big{display:block;font-size:30px;font-weight:600;line-height:1.05}
+.totals span.l{font-size:13px;color:var(--muted)}
+
+.layout{display:grid;gap:20px;margin-top:20px;grid-template-columns:1fr;grid-template-areas:"main" "side"}
+@media (min-width:980px){.layout{grid-template-columns:330px 1fr;grid-template-areas:"side main"}}
+aside{grid-area:side}
+main{grid-area:main;min-width:0}
+
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:6px;padding:16px}
+.panel+.panel{margin-top:16px}
+.panel h2{margin:0 0 12px;font-size:17px;font-weight:700}
+.field{display:block;margin-bottom:10px}
+.field span{display:block;font-size:13px;font-weight:600;color:var(--muted);margin-bottom:4px}
+.field input,.field select,textarea{width:100%;padding:9px 10px;border:1px solid var(--line);border-radius:4px;background:var(--surface-2)}
+textarea{min-height:110px;resize:vertical;font-family:ui-monospace,Consolas,monospace;font-size:13px}
+.row2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.btn{appearance:none;border:1px solid var(--ink);background:var(--ink);color:var(--surface);padding:9px 14px;border-radius:4px;font-weight:600;cursor:pointer}
+.btn.ghost{background:transparent;color:var(--ink);border-color:var(--line)}
+.btn.small{padding:4px 9px;font-size:13px;font-weight:500}
+.btn.danger{color:var(--asim);border-color:var(--line);background:transparent}
+.btn.danger.confirm{background:var(--asim);border-color:var(--asim);color:#fff}
+.btn[disabled]{opacity:.5;cursor:not-allowed}
+.actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:4px}
+.hint{font-size:13px;color:var(--muted);margin:8px 0 0}
+.msg{font-size:13px;margin-top:8px;min-height:1em}
+.msg.err{color:var(--asim)}
+.msg.ok{color:var(--dolu)}
+
+.toolbar{display:flex;flex-wrap:wrap;gap:12px 20px;align-items:flex-end;margin-bottom:14px}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:4px;overflow:hidden;background:var(--surface)}
+.seg button{border:0;background:transparent;padding:8px 14px;cursor:pointer;font-weight:600;color:var(--muted)}
+.seg button[aria-pressed="true"]{background:var(--ink);color:var(--surface)}
+.toolbar label.inline{display:flex;flex-direction:column;font-size:13px;font-weight:600;color:var(--muted);gap:4px}
+.toolbar select{padding:8px 10px;border:1px solid var(--line);border-radius:4px;background:var(--surface);min-width:150px}
+.check{display:flex;align-items:center;gap:8px;font-weight:600;font-size:14px;padding-bottom:8px;cursor:pointer}
+.legend{display:flex;flex-wrap:wrap;gap:6px 18px;font-size:13px;color:var(--muted);margin:0 0 16px}
+.legend i{display:inline-block;width:12px;height:12px;border-radius:2px;vertical-align:-1px;margin-right:6px}
+
+.group{margin-bottom:26px}
+.ghead{display:flex;flex-wrap:wrap;align-items:baseline;justify-content:space-between;gap:6px 20px;border-bottom:2px solid var(--ink);padding-bottom:6px;margin-bottom:10px}
+.ghead h3{margin:0;font-size:22px;font-family:"Barlow Condensed","Arial Narrow",sans-serif;font-weight:700}
+.ghead .stats{display:flex;flex-wrap:wrap;gap:4px 18px;font-size:14px;color:var(--muted)}
+.ghead .stats b{color:var(--ink);font-weight:600}
+.gstrip{margin:0 0 14px}
+
+.mach{display:grid;grid-template-columns:auto 1fr;gap:4px 16px;padding:14px 0;border-bottom:1px solid var(--line)}
+.mach:last-child{border-bottom:0}
+.mach .no{font-size:40px;font-weight:700;line-height:.9;min-width:70px}
+.mach .no small{display:block;font-family:"Barlow",sans-serif;font-size:12px;font-weight:500;color:var(--muted);margin-top:6px;max-width:90px;line-height:1.2}
+.mach .body{min-width:0}
+.mach.dep .no{font-size:26px;line-height:1.05;max-width:190px;overflow-wrap:anywhere}
+.mach.dep .no small{max-width:none}
+.mach.factory{background:var(--surface);border:1px solid var(--line);border-top:4px solid var(--ink);border-radius:0 0 6px 6px;padding:16px;margin-bottom:22px}
+.mach.factory:last-child{border-bottom:1px solid var(--line)}
+.sentence{margin:0 0 4px;font-size:16px}
+.sentence b{font-weight:700}
+.meta{display:flex;flex-wrap:wrap;gap:4px 16px;font-size:13px;color:var(--muted);margin-bottom:8px;align-items:center}
+.meta .pill{font-weight:700;padding:1px 7px;border-radius:3px;color:#fff}
+.meta .pill.d{background:var(--dolu)}
+.meta .pill.b{background:var(--bos)}
+.meta .pill.a{background:var(--asim)}
+.meta .tools{margin-left:auto;display:flex;gap:6px}
+
+.strip{--c-d:var(--dolu);--c-b:var(--bos);--c-a:var(--asim);width:100%}
+.strip .c{background:var(--c-b);border-radius:1px}
+.strip .c.d{background:var(--c-d)}
+.strip .c.a{background:var(--c-a)}
+.strip .c.p{background:linear-gradient(to right,var(--c-d) var(--f),var(--c-b) var(--f))}
+.strip .c.ap{background:linear-gradient(to right,var(--c-a) var(--f),transparent var(--f));outline:1px dashed var(--c-a);outline-offset:-1px}
+.strip.v-gun{display:flex;flex-wrap:wrap;gap:2px}
+.strip.v-gun .c{width:6px;height:16px}
+.strip.v-gun .c.h{width:3px}
+.strip.v-hafta{display:grid;grid-template-columns:repeat(53,minmax(0,1fr));gap:2px}
+.strip.v-hafta .c{height:22px}
+.strip.v-ay{display:grid;grid-template-columns:repeat(12,minmax(0,1fr));gap:3px}
+.strip.v-ay .c{height:34px;display:flex;align-items:flex-end;justify-content:flex-start;padding:2px 4px;font-size:11px;font-weight:600;color:#fff;font-family:"Barlow Condensed",sans-serif}
+.scale{display:flex;justify-content:space-between;font-size:11px;color:var(--muted);margin-top:3px}
+
+.banner{border-left:4px solid var(--bos);background:var(--surface);padding:10px 14px;margin-bottom:16px;font-size:14px;border-radius:0 4px 4px 0}
+.cal summary{cursor:pointer;font-weight:700}
+.cal table{width:100%;border-collapse:collapse;margin-top:10px;font-size:14px}
+.cal td{padding:3px 0;border-bottom:1px solid var(--line)}
+.cal td:last-child{text-align:right;font-family:"Barlow Condensed",sans-serif;font-size:16px;font-weight:600}
+.cal tr.t td{border-bottom:0;font-weight:700}
+.empty{padding:40px 20px;text-align:center;color:var(--muted);border:2px dashed var(--line);border-radius:6px}
+.status{font-size:12px;color:var(--muted);margin-top:12px}
+@media (max-width:600px){
+  .mach{grid-template-columns:1fr}
+  .mach .no{display:flex;align-items:baseline;gap:10px}
+  .mach .no small{margin:0;max-width:none}
+  .meta .tools{margin-left:0}
+}
+@media (prefers-reduced-motion:no-preference){.strip .c{transition:background-color .2s}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <div>
+      <h1>Tezgah kapasite takibi</h1>
+      <p>Her tezgahın yasal iş günü ile siparişe göre ihtiyaç duyulan çalışma günü yan yana.</p>
+    </div>
+    <div class="totals" id="totals"></div>
+  </header>
+
+  <div class="layout">
+    <aside>
+      <section class="panel">
+        <h2 id="formTitle">Tezgah ekle</h2>
+        <form id="form" autocomplete="off" novalidate>
+          <div class="row2">
+            <label class="field"><span>Tezgah numarası</span><input id="fTezgah" required inputmode="text" placeholder="419"></label>
+            <label class="field"><span>Bölüm</span><input id="fBolum" list="bolumList" placeholder="Enjeksiyon"></label>
+          </div>
+          <label class="field"><span>İhtiyaç çalışma günü</span><input id="fIhtiyac" inputmode="decimal" placeholder="112,52"></label>
+          <p class="hint" id="yasalHint" style="margin:0 0 10px"></p>
+          <div class="actions">
+            <button class="btn" type="submit" id="saveBtn">Kaydet</button>
+            <button class="btn ghost" type="button" id="cancelBtn" hidden>Vazgeç</button>
+          </div>
+          <div class="msg" id="formMsg" role="status"></div>
+        </form>
+        <datalist id="bolumList"></datalist>
+      </section>
+
+      <section class="panel">
+        <h2>Excel’den toplu ekle</h2>
+        <textarea id="paste" placeholder="Excel’deki tabloyu kopyalayıp buraya yapıştır"></textarea>
+        <label class="field" style="margin-top:10px"><span>Bölüm (yapıştırılan satırlarda bölüm yoksa)</span><input id="pBolum" list="bolumList" placeholder="Enjeksiyon"></label>
+        <div class="actions"><button class="btn" type="button" id="pasteBtn">Satırları ekle</button><button class="btn ghost" type="button" id="csvBtn">CSV olarak indir</button></div>
+        <p class="hint">İki biçim tanınır: tezgahlar sütunlarda ve altında “İhtiyaç Çalışma günü” satırı; ya da her satırda Tezgah, Bölüm, İhtiyaç. Yasal iş günü takvimden alınır, yapıştırılan veride olsa da yok sayılır. Var olan tezgah numarası güncellenir.</p>
+        <div class="msg" id="pasteMsg" role="status"></div>
+      </section>
+      <section class="panel cal">
+        <details>
+          <summary id="calTitle">2027 çalışma takvimi</summary>
+          <p class="hint">Pazar tatil, Cumartesi çalışılıyor. Resmi tatiller düşüldü, 28 Ekim yarım gün.</p>
+          <table id="calTable"></table>
+        </details>
+      </section>
+      <p class="status" id="status"></p>
+    </aside>
+
+    <main>
+      <div class="toolbar">
+        <div>
+          <div style="font-size:13px;font-weight:600;color:var(--muted);margin-bottom:4px">Şema birimi</div>
+          <div class="seg" role="group" aria-label="Şema birimi">
+            <button type="button" data-view="gun">Gün</button>
+            <button type="button" data-view="hafta">Hafta</button>
+            <button type="button" data-view="ay">Ay</button>
+          </div>
+        </div>
+        <label class="inline">Bölüm
+          <select id="bolumFilter"><option value="*">Tüm bölümler</option></select>
+        </label>
+        <label class="inline">Sıralama
+          <select id="sortSel">
+            <option value="tezgah">Tezgah numarası</option>
+            <option value="doluluk">Doluluk (yüksekten)</option>
+            <option value="bos">Boşta kalan gün (çoktan)</option>
+          </select>
+        </label>
+        <label class="inline">Liste
+          <select id="modeSel">
+            <option value="grup">Bölüm altında tezgahlar</option>
+            <option value="bolum">Sadece bölümler</option>
+            <option value="tezgah">Sadece tezgahlar</option>
+          </select>
+        </label>
+      </div>
+      <div class="legend">
+        <span><i style="background:var(--dolu)"></i>Siparişle dolu</span>
+        <span><i style="background:var(--bos)"></i>Boşta kalan</span>
+        <span><i style="background:var(--asim)"></i>Kapasiteyi aşan</span>
+        <span id="unitNote"></span>
+      </div>
+      <div class="banner" id="banner" hidden></div>
+      <div id="list"></div>
+    </main>
+  </div>
+</div>
+
+<script>
+(function(){
+  const COL = 'tezgahlar';
+  const state = { rows:new Map(), view:'hafta', bolum:'*', mode:'grup', sort:'tezgah', editing:null, readOnly:false };
+  let db = null;
+
+  const $ = id => document.getElementById(id);
+  const fmt = n => Number(n).toLocaleString('tr-TR',{maximumFractionDigits:2});
+  const pct = r => '%' + (r*100).toLocaleString('tr-TR',{maximumFractionDigits:1});
+  const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  const idOf = t => String(t).trim().replace(/[^A-Za-z0-9_-]/g,'_').slice(0,120) || 'x';
+  const BOLUMSUZ = 'Bölüm girilmedi';
+
+  function parseNum(s){
+    if (s == null) return NaN;
+    s = String(s).trim().replace(/\s/g,'');
+    if (!s) return NaN;
+    if (s.includes(',')) s = s.replace(/\./g,'').replace(',','.');
+    return Number(s);
+  }
+
+  // ---------- storage ----------
+  function localLoad(){
+    try { const raw = localStorage.getItem('tezgah-kapasite'); if (raw) JSON.parse(raw).forEach(r => state.rows.set(idOf(r.tezgah), { ...r, yasal: CAL.total })); } catch(e){}
+  }
+  function localSave(){
+    try { localStorage.setItem('tezgah-kapasite', JSON.stringify([...state.rows.values()])); } catch(e){}
+  }
+  async function saveRow(r){
+    const id = idOf(r.tezgah);
+    if (db){
+      try { await db.collection(COL).doc(id).set(r); }
+      catch(e){
+        if (e && e.code === 'invalid_argument'){ state.readOnly = true; applyReadOnly(); throw new Error('Bu sayfada veri değiştirme yetkin yok.'); }
+        throw new Error('Kaydedilemedi: ' + (e && e.message || 'bilinmeyen hata'));
+      }
+    } else { state.rows.set(id, { ...r, yasal: CAL.total }); localSave(); render(); }
+  }
+  async function deleteRow(id){
+    if (db){ await db.collection(COL).doc(id).delete(); }
+    else { state.rows.delete(id); localSave(); render(); }
+  }
+  function applyReadOnly(){
+    document.querySelectorAll('#form input, #form button, #paste, #pBolum, #pasteBtn').forEach(el => el.disabled = state.readOnly);
+    if (state.readOnly) $('status').textContent = 'Bu sayfayı yalnızca görüntüleyebilirsin.';
+    render();
+  }
+
+  // ---------- schematic ----------
+  // ---------- 2027 çalışma takvimi ----------
+  // Pazar tatil, Cumartesi çalışılıyor. Değer: o gün düşülen tatil (1 tam gün, 0.5 yarım gün)
+  const YIL = 2027;
+  const AYLAR = ['Ocak','Şubat','Mart','Nisan','Mayıs','Haziran','Temmuz','Ağustos','Eylül','Ekim','Kasım','Aralık'];
+  const AY_KISA = ['Oca','Şub','Mar','Nis','May','Haz','Tem','Ağu','Eyl','Eki','Kas','Ara'];
+  const TATILLER = {
+    '2027-01-01':1,
+    '2027-03-08':1,'2027-03-09':1,'2027-03-10':1,'2027-03-11':1,
+    '2027-04-23':1,
+    '2027-05-01':1,'2027-05-15':1,'2027-05-16':1,'2027-05-17':1,'2027-05-18':1,'2027-05-19':1,
+    '2027-07-15':1,
+    '2027-08-30':1,
+    '2027-10-28':0.5,'2027-10-29':1
+  };
+  const pad = n => String(n).padStart(2,'0');
+  const dfmt = d => d.toLocaleDateString('tr-TR',{day:'numeric',month:'long'});
+  const CAL = (() => {
+    const days = [];
+    const jan1 = new Date(YIL,0,1);
+    const offset = (jan1.getDay()+6)%7;
+    for (let d = new Date(YIL,0,1); d.getFullYear() === YIL; d.setDate(d.getDate()+1)){
+      if (d.getDay() === 0) continue;
+      const key = `${YIL}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
+      const cap = 1 - (TATILLER[key] || 0);
+      if (cap <= 0) continue;
+      const doy = Math.round((new Date(d) - jan1)/86400000);
+      days.push({ date:new Date(d), cap, month:d.getMonth(), week:Math.floor((doy+offset)/7) });
+    }
+    const total = days.reduce((s,x)=>s+x.cap,0);
+    const months = AYLAR.map((n,i)=>({ label:n, short:AY_KISA[i], cap:days.filter(x=>x.month===i).reduce((s,x)=>s+x.cap,0) }));
+    const weeks = [];
+    days.forEach(x => {
+      let w = weeks[weeks.length-1];
+      if (!w || w.idx !== x.week){ w = { idx:x.week, cap:0, from:x.date, to:x.date }; weeks.push(w); }
+      w.cap += x.cap; w.to = x.date;
+    });
+    return { days, months, weeks, total };
+  })();
+
+  function cellsFor(){
+    if (state.view === 'gun') return CAL.days.map(x => ({ cap:x.cap, half:x.cap < 1, label:'',
+      title: x.date.toLocaleDateString('tr-TR',{day:'numeric',month:'long',weekday:'long'}) + (x.cap < 1 ? ' (yarım gün)' : '') }));
+    if (state.view === 'hafta') return CAL.weeks.map((w,i) => ({ cap:w.cap, label:'',
+      title: `${i+1}. hafta (${dfmt(w.from)} – ${dfmt(w.to)}): ${fmt(w.cap)} iş günü` }));
+    return CAL.months.map(m => ({ cap:m.cap, label:m.short, title:`${m.label}: ${fmt(m.cap)} iş günü` }));
+  }
+  function strip(yasal, ihtiyac, label){
+    if (!(yasal > 0)) return '<p class="hint">Yasal iş günü girilmediği için şema çizilemiyor.</p>';
+    const k = yasal / CAL.total;
+    const cells = cellsFor();
+    let rest = ihtiyac, out = '';
+    for (const c of cells){
+      const cap = c.cap * k;
+      const used = Math.max(0, Math.min(cap, rest));
+      rest -= used;
+      const f = cap > 0 ? used/cap : 0;
+      const cls = (f >= 0.999 ? 'c d' : f <= 0 ? 'c' : 'c p') + (c.half ? ' h' : '');
+      const st = (f > 0 && f < 0.999) ? ` style="--f:${(f*100).toFixed(1)}%"` : '';
+      const t = c.title + (used > 0 ? `, dolu ${fmt(used)} gün` : '');
+      out += `<span class="${cls}"${st} title="${esc(t)}">${c.label}</span>`;
+    }
+    if (rest > 0.0001){
+      const avg = yasal / cells.length;
+      const n = Math.ceil(rest/avg - 1e-9);
+      for (let j = 0; j < n; j++){
+        const f = Math.min(1, (rest - j*avg)/avg);
+        out += f >= 0.999 ? '<span class="c a" title="Kapasite aşımı"></span>' : `<span class="c ap" style="--f:${(f*100).toFixed(1)}%" title="Kapasite aşımı"></span>`;
+      }
+    }
+    const aria = `${label}: ${fmt(yasal)} günlük kapasitenin ${fmt(Math.min(ihtiyac,yasal))} günü dolu`;
+    const scale = state.view === 'ay' ? '' : `<div class="scale"><span>1 Ocak ${YIL}</span><span>31 Aralık ${YIL}</span></div>`;
+    return `<div class="strip v-${state.view}" role="img" aria-label="${esc(aria)}">${out}</div>${scale}`;
+  }
+  function bitis(y, h){
+    if (!(h > 0) || !(y > 0)) return '';
+    const k = y / CAL.total;
+    let rest = h;
+    for (const d of CAL.days){ rest -= d.cap * k; if (rest <= 1e-9) return `<span>Yılbaşından sırayla çalışırsa bitiş: ${dfmt(d.date)}</span>`; }
+    return '<span>Yıl içine sığmıyor</span>';
+  }
+  function renderCal(){
+    $('calTitle').textContent = `${YIL} çalışma takvimi (${fmt(CAL.total)} gün)`;
+    $('calTable').innerHTML = CAL.months.map(m => `<tr><td>${m.label}</td><td>${fmt(m.cap)}</td></tr>`).join('') + `<tr class="t"><td>Toplam</td><td>${fmt(CAL.total)}</td></tr>`;
+    $('yasalHint').textContent = `Yasal iş günü ${YIL} takviminden otomatik alınır: ${fmt(CAL.total)} gün.`;
+  }
+
+  // ---------- rendering ----------
+  function stats(list){
+    const yasal = list.reduce((s,r)=>s+(+r.yasal||0),0);
+    const ihtiyac = list.reduce((s,r)=>s+(+r.ihtiyac||0),0);
+    return { yasal, ihtiyac, bos: Math.max(0,yasal-ihtiyac), oran: yasal>0 ? ihtiyac/yasal : 0, n:list.length };
+  }
+  function sentence(r){
+    const y = +r.yasal||0, h = +r.ihtiyac||0;
+    let s = `<b>${esc(r.tezgah)}</b> numaralı tezgah <b>${fmt(y)}</b> gün çalışabilirken siparişe göre <b>${fmt(h)}</b> gün çalışacak.`;
+    if (h === 0) s += ' Şu an bu tezgah için sipariş ihtiyacı yok.';
+    else if (h > y) s += ` Kapasiteyi <b>${fmt(h-y)}</b> gün aşıyor.`;
+    else s += ` <b>${fmt(y-h)}</b> gün boşta kalıyor.`;
+    return s;
+  }
+  function machineHtml(r){
+    const y = +r.yasal||0, h = +r.ihtiyac||0;
+    const oran = y>0 ? h/y : 0;
+    const pill = h > y ? `<span class="pill a">${pct(oran)} yük</span>` : `<span class="pill ${oran>=0.5?'d':'b'}">${pct(oran)} dolu</span>`;
+    const id = idOf(r.tezgah);
+    const tools = state.readOnly ? '' : `<span class="tools"><button class="btn ghost small" data-edit="${esc(id)}">Düzenle</button><button class="btn danger small" data-del="${esc(id)}">Sil</button></span>`;
+    const bolumTxt = state.mode === 'grup' ? '' : `<small>${esc(r.bolum || BOLUMSUZ)}</small>`;
+    return `<article class="mach">
+      <div class="no big">${esc(r.tezgah)}${bolumTxt}</div>
+      <div class="body">
+        <p class="sentence">${sentence(r)}</p>
+        <div class="meta">${pill}<span>Boşta ${fmt(Math.max(0,y-h))} gün</span>${bitis(y,h)}${tools}</div>
+        ${strip(y, h, 'Tezgah ' + r.tezgah)}
+      </div>
+    </article>`;
+  }
+  function bolumHtml(b, g){
+    const s = stats(g);
+    const asan = g.filter(r => (+r.ihtiyac||0) > (+r.yasal||0)).length;
+    const siparissiz = g.filter(r => !((+r.ihtiyac||0) > 0)).length;
+    const ad = b === BOLUMSUZ
+      ? `Bölümü girilmemiş <b>${s.n}</b> tezgah`
+      : `<b>${esc(b)}</b> bölümündeki <b>${s.n}</b> tezgah`;
+    let cumle = `${ad} toplam <b>${fmt(s.yasal)}</b> gün çalışabilirken siparişe göre <b>${fmt(s.ihtiyac)}</b> gün çalışacak.`;
+    cumle += s.ihtiyac > s.yasal ? ` Kapasiteyi <b>${fmt(s.ihtiyac - s.yasal)}</b> gün aşıyor.` : ` <b>${fmt(s.bos)}</b> gün boşta kalıyor.`;
+    const pill = s.ihtiyac > s.yasal ? `<span class="pill a">${pct(s.oran)} yük</span>` : `<span class="pill ${s.oran>=0.5?'d':'b'}">${pct(s.oran)} dolu</span>`;
+    const ekler = (asan ? `<span>${asan} tezgahta kapasite aşımı</span>` : '') + (siparissiz ? `<span>${siparissiz} tezgahta sipariş yok</span>` : '');
+    return `<article class="mach dep">
+      <div class="no big">${esc(b)}<small>${s.n} tezgah</small></div>
+      <div class="body">
+        <p class="sentence">${cumle}</p>
+        <div class="meta">${pill}<span>Boşta ${fmt(s.bos)} gün</span>${ekler}<span class="tools"><button class="btn ghost small" data-open="${esc(b)}">Tezgahları göster</button></span></div>
+        ${strip(s.yasal, s.ihtiyac, b + ' bölümü')}
+      </div>
+    </article>`;
+  }
+  function sorted(list){
+    const c = [...list];
+    if (state.sort === 'doluluk') c.sort((a,b)=> (b.ihtiyac/(b.yasal||1)) - (a.ihtiyac/(a.yasal||1)));
+    else if (state.sort === 'bos') c.sort((a,b)=> ((b.yasal-b.ihtiyac)) - ((a.yasal-a.ihtiyac)));
+    else c.sort((a,b)=> String(a.tezgah).localeCompare(String(b.tezgah),'tr',{numeric:true}));
+    return c;
+  }
+  function render(){
+    const all = [...state.rows.values()];
+    const bolumler = [...new Set(all.map(r => r.bolum || BOLUMSUZ))].sort((a,b)=>a.localeCompare(b,'tr'));
+
+    // filter options
+    const sel = $('bolumFilter');
+    if (state.bolum !== '*' && !bolumler.includes(state.bolum)) state.bolum = '*';
+    sel.innerHTML = '<option value="*">Tüm bölümler</option>' + bolumler.map(b=>`<option${b===state.bolum?' selected':''}>${esc(b)}</option>`).join('');
+    $('bolumList').innerHTML = bolumler.filter(b=>b!==BOLUMSUZ).map(b=>`<option value="${esc(b)}">`).join('');
+
+    const list = all.filter(r => state.bolum === '*' || (r.bolum || BOLUMSUZ) === state.bolum);
+    const t = stats(list);
+    $('totals').innerHTML = `
+      <div><span class="big">${t.n}</span><span class="l">Tezgah</span></div>
+      <div><span class="big">${fmt(t.yasal)}</span><span class="l">Toplam kapasite (gün)</span></div>
+      <div><span class="big" style="color:var(--dolu)">${fmt(t.ihtiyac)}</span><span class="l">Siparişe göre ihtiyaç (gün)</span></div>
+      <div><span class="big" style="color:var(--bos)">${pct(t.oran)}</span><span class="l">Genel doluluk</span></div>`;
+
+    const notes = { gun:'Her kare bir iş günü (Pazar ve resmi tatiller yok, ince kare yarım gün).', hafta:`Her kare ${YIL}’nin bir haftası; o haftanın iş günü kadar kapasite taşır.`, ay:'Her kare bir ay; o ayın iş günü kadar kapasite taşır.' };
+    $('unitNote').textContent = notes[state.view] + ' Doluluk 1 Ocak’tan itibaren sırayla işaretlenir. Karenin üzerine gelince ayrıntı görünür.';
+    const farkli = all.filter(r => Math.abs((+r.yasal||0) - CAL.total) > 0.01);
+    const bn = $('banner');
+    if (farkli.length){
+      const ornek = [...new Set(farkli.map(r => fmt(r.yasal)))].join(', ');
+      bn.hidden = false;
+      bn.textContent = `${farkli.length} tezgahta girilen yasal iş günü (${ornek}) ${YIL} takviminden hesaplanan ${fmt(CAL.total)} günle uyuşmuyor. Şema, takvimin ay ve hafta dağılımı korunarak girilen değere orantılanıp çizildi.`;
+    } else bn.hidden = true;
+    document.querySelectorAll('.seg button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.view === state.view)));
+
+    const host = $('list');
+    if (!list.length){
+      host.innerHTML = `<div class="empty">${all.length ? 'Bu bölümde tezgah yok.' : 'Henüz tezgah yok. Formdan ilk tezgahı ekle ya da Excel’deki tabloyu yapıştır.'}</div>`;
+      return;
+    }
+    if (state.mode === 'bolum'){
+      const deps = bolumler.map(b => {
+        const g = list.filter(r => (r.bolum||BOLUMSUZ) === b);
+        const s = stats(g);
+        return { tezgah:b, yasal:s.yasal, ihtiyac:s.ihtiyac, g };
+      }).filter(d => d.g.length);
+      host.innerHTML = sorted(deps).map(d => bolumHtml(d.tezgah, d.g)).join('');
+    } else if (state.mode === 'grup'){
+      host.innerHTML = bolumler.filter(b => list.some(r => (r.bolum||BOLUMSUZ) === b)).map(b => {
+        const g = list.filter(r => (r.bolum||BOLUMSUZ) === b);
+        const s = stats(g);
+        return `<section class="group">
+          <div class="ghead"><h3>${esc(b)}</h3>
+            <div class="stats"><span><b>${s.n}</b> tezgah</span><span>Kapasite <b>${fmt(s.yasal)}</b> gün</span><span>İhtiyaç <b>${fmt(s.ihtiyac)}</b> gün</span><span>Doluluk <b>${pct(s.oran)}</b></span></div>
+          </div>
+          ${g.length > 1 ? `<div class="gstrip">${strip(s.yasal/s.n, s.ihtiyac/s.n, b + ' bölüm ortalaması')}<p class="hint" style="margin-top:4px">Bölüm ortalaması (tezgah başına)</p></div>` : ''}
+          ${sorted(g).map(machineHtml).join('')}
+        </section>`;
+      }).join('');
+    } else {
+      host.innerHTML = sorted(list).map(machineHtml).join('');
+    }
+  }
+
+  // ---------- form ----------
+  function resetForm(){
+    state.editing = null;
+    $('form').reset();
+    $('formTitle').textContent = 'Tezgah ekle';
+    $('cancelBtn').hidden = true;
+    $('fTezgah').disabled = state.readOnly;
+  }
+  $('form').addEventListener('submit', async e => {
+    e.preventDefault();
+    const msg = $('formMsg'); msg.className = 'msg';
+    const tezgah = $('fTezgah').value.trim();
+    const bolum = $('fBolum').value.trim();
+    const ihtiyacRaw = $('fIhtiyac').value.trim();
+    const ihtiyac = ihtiyacRaw === '' ? 0 : parseNum(ihtiyacRaw);
+    if (!tezgah){ msg.className='msg err'; msg.textContent='Tezgah numarasını yaz.'; return; }
+    if (!(ihtiyac >= 0)){ msg.className='msg err'; msg.textContent='İhtiyaç çalışma günü sayı olmalı (boş bırakırsan 0 sayılır).'; return; }
+    const wasEditing = !!state.editing;
+    if (state.editing && state.editing !== idOf(tezgah)){
+      try { await deleteRow(state.editing); } catch(err){}
+    }
+    try {
+      await saveRow({ tezgah, bolum, ihtiyac, guncellendi: Date.now() });
+      msg.className='msg ok'; msg.textContent = wasEditing ? `${tezgah} güncellendi.` : `${tezgah} kaydedildi.`;
+      const keepBolum = bolum;
+      resetForm();
+      $('fBolum').value = keepBolum;
+      $('fTezgah').focus();
+    } catch(err){ msg.className='msg err'; msg.textContent = err.message; }
+  });
+  $('cancelBtn').addEventListener('click', () => { resetForm(); $('formMsg').textContent=''; });
+
+  $('list').addEventListener('click', async e => {
+    const op = e.target.closest('[data-open]');
+    if (op){ state.mode = 'grup'; state.bolum = op.dataset.open; $('modeSel').value = 'grup'; render(); window.scrollTo({ top: $('list').getBoundingClientRect().top + window.scrollY - 80 }); return; }
+    const ed = e.target.closest('[data-edit]'); const del = e.target.closest('[data-del]');
+    if (ed){
+      const r = state.rows.get(ed.dataset.edit); if (!r) return;
+      state.editing = ed.dataset.edit;
+      $('fTezgah').value = r.tezgah; $('fBolum').value = r.bolum || '';
+      $('fIhtiyac').value = fmt(r.ihtiyac);
+      $('formTitle').textContent = `Tezgah ${r.tezgah} düzenleniyor`;
+      $('cancelBtn').hidden = false; $('formMsg').textContent='';
+      $('fIhtiyac').focus();
+    }
+    if (del){
+      const r = state.rows.get(del.dataset.del); if (!r) return;
+      if (del.dataset.confirm !== '1'){
+        del.dataset.confirm = '1';
+        del.textContent = `${r.tezgah} silinsin mi? Onayla`;
+        del.classList.add('confirm');
+        clearTimeout(del._t);
+        del._t = setTimeout(() => { del.dataset.confirm = ''; del.textContent = 'Sil'; del.classList.remove('confirm'); }, 4000);
+        return;
+      }
+      clearTimeout(del._t);
+      del.disabled = true; del.textContent = 'Siliniyor…';
+      try {
+        await deleteRow(del.dataset.del);
+        $('status').textContent = `${r.tezgah} numaralı tezgah silindi.`;
+      } catch(err){
+        del.disabled = false; del.dataset.confirm = ''; del.textContent = 'Sil'; del.classList.remove('confirm');
+        const yetki = err && err.code === 'invalid_argument';
+        $('status').textContent = yetki ? 'Silinemedi: bu sayfada veri değiştirme yetkin yok.' : 'Silinemedi: ' + (err && err.message || 'bilinmeyen hata');
+      }
+    }
+  });
+
+  // ---------- paste ----------
+  function parsePaste(text, defBolum){
+    const lines = text.replace(/\r/g,'').split('\n').filter(l => l.trim() !== '');
+    const rows = lines.map(l => l.split(/\t|;/));
+    const low = s => String(s).toLocaleLowerCase('tr');
+    const find = (re) => rows.find(r => r.some(c => re.test(low(c))));
+    const yasalRow = find(/yasal/);
+    const ihtRow = find(/ihtiya[çc]/);
+    const out = [];
+    const transposed = ihtRow && ihtRow !== yasalRow && ihtRow.some(c => !isNaN(parseNum(c)));
+    if (transposed){
+      const bolumRow = find(/^\s*b[öo]l[üu]m/);
+      const header = rows.find(r => r !== yasalRow && r !== ihtRow && r !== bolumRow && r.some(c => c.trim() !== ''));
+      if (!header) return out;
+      header.forEach((cell, i) => {
+        const t = cell.trim(); if (!t) return;
+        const h = parseNum(ihtRow[i]);
+        if (isNaN(h) && String(ihtRow[i] ?? '').trim() !== '') return;
+        out.push({ tezgah:t, bolum:(bolumRow && bolumRow[i] && bolumRow[i].trim()) || defBolum, ihtiyac: isNaN(h) ? 0 : h });
+      });
+    } else {
+      rows.forEach(r => {
+        const c = r.map(x => x.trim());
+        while (c.length && c[c.length-1] === '') c.pop();
+        if (c.length < 2 || !c[0]) return;
+        const h = parseNum(c[c.length-1]);
+        if (isNaN(h)) return;
+        const bolum = c.slice(1, -1).find(x => x && isNaN(parseNum(x))) || defBolum;
+        out.push({ tezgah:c[0], bolum, ihtiyac:h });
+      });
+    }
+    return out;
+  }
+  $('pasteBtn').addEventListener('click', async () => {
+    const msg = $('pasteMsg'); msg.className='msg';
+    const items = parsePaste($('paste').value, $('pBolum').value.trim());
+    if (!items.length){ msg.className='msg err'; msg.textContent='Tanınan satır yok. Tezgah numaraları ile “İhtiyaç Çalışma günü” satırını birlikte kopyala.'; return; }
+    $('pasteBtn').disabled = true;
+    let ok = 0, fail = '';
+    for (const it of items){
+      try { await saveRow({ ...it, guncellendi: Date.now() }); ok++; }
+      catch(err){ fail = err.message; break; }
+    }
+    $('pasteBtn').disabled = state.readOnly;
+    if (fail){ msg.className='msg err'; msg.textContent = `${ok} tezgah eklendi, sonra durdu: ${fail}`; }
+    else { msg.className='msg ok'; msg.textContent = `${ok} tezgah eklendi ya da güncellendi.`; $('paste').value=''; }
+  });
+
+  // ---------- toolbar ----------
+  document.querySelectorAll('.seg button').forEach(b => b.addEventListener('click', () => { state.view = b.dataset.view; render(); }));
+  $('bolumFilter').addEventListener('change', e => { state.bolum = e.target.value; render(); });
+  $('sortSel').addEventListener('change', e => { state.sort = e.target.value; render(); });
+  $('modeSel').addEventListener('change', e => { state.mode = e.target.value; render(); });
+
+  renderCal();
+  render();
+
+  // ---------- yerel depolama ----------
+  localLoad();
+  render();
+  $('status').textContent = `Veriler bu tarayıcıda saklanıyor (${state.rows.size} tezgah). Başka bir bilgisayara taşımak için CSV indirip orada yapıştır.`;
+
+  // ---------- CSV indir ----------
+  $('csvBtn').addEventListener('click', () => {
+    const rows = [...state.rows.values()].sort((a,b)=> String(a.tezgah).localeCompare(String(b.tezgah),'tr',{numeric:true}));
+    if (!rows.length){ $('pasteMsg').className='msg err'; $('pasteMsg').textContent='İndirilecek tezgah yok.'; return; }
+    const q = v => { const t = String(v ?? ''); return /[;"\n]/.test(t) ? '"' + t.replace(/"/g,'""') + '"' : t; };
+    const lines = ['Tezgah;Bölüm;İhtiyaç Çalışma Günü'].concat(rows.map(r => [q(r.tezgah), q(r.bolum), String(+r.ihtiyac||0).replace('.',',')].join(';')));
+    const blob = new Blob(['\ufeff' + lines.join('\r\n')], { type:'text/csv;charset=utf-8' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'tezgah-kapasite.csv';
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+  });
+})();
+</script>
+</body>
+</html>
